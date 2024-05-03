@@ -1,0 +1,77 @@
+<html>
+    <head> 
+    </head>
+    <body style="text-align: center;"> 
+    
+       
+
+
+
+        <table>
+            <thead>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div style="text-align: center;">
+                            1
+                        </div>
+                    </td>
+                    <td>
+                        <h3>BEP: Reflow Oven</h3>
+                        
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            2
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>
+                        <div style="text-align: center;">
+                            3
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            <div id="messagebox"></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            5
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+            </table>
+
+
+
+        <script type="text/javascript">
+            const socket = new WebSocket("ws://"+window.location.host+":80/websocket");
+
+            // Listen for messages
+            socket.addEventListener("message", (event) => {
+                console.log("Message from server ", event.data);
+                document.getElementById("messagebox").innerHTML = event.data;
+            });
+
+
+
+            function senddata(x) {
+                // var x = document.getElementById("slider1").value;
+                // document.getElementById("slider1value").innerHTML = x;
+
+                socket.send(JSON.stringify({
+                    'data': x
+                }));
+            }
+
+
+        </script>
+
+    </body>
+</html>

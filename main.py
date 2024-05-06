@@ -5,6 +5,7 @@ import uasyncio as asyncio
 from microdot import Microdot,send_file
 import gc
 from ws import with_websocket
+import math
 
 with open(".env") as f:
         env = f.read().split(",")
@@ -21,9 +22,28 @@ async def blink():
 
 def thermistor(pin: int):
     therm = machine.ADC(pin)
-    # todo one wire digital temp sens?
-    #return somefunction(therm.read())
+    # Define the beta value of the thermistor, typically provided in the datasheet
+    beta = 3950
 
+    # Read the voltage in microvolts and convert it to volts
+    Vr = (3.3*float(therm.read_u16())/65535)
+
+    # Calculate the resistance of the thermistor based on the measured voltage
+    Rt = 100_000 * Vr / (3.3 - Vr)
+
+    # Use the beta parameter and resistance value to calculate the temperature in Kelvin
+    kelvin = 1 / (((math.log(Rt / 10_000)) / beta) + (1 / (273.15 + 25)))
+
+    # Convert to Celsius
+    Cel = kelvin - 273.15
+
+    # Print the temperature values in Celsius
+    print('Celsius: ' + str(Cel))
+
+async def keep_reading():
+    while True:
+        print(thermistor(0))
+        await asyncio.sleep(1000)
 
 fan = machine.PWM(machine.Pin(5))
 fan.freq(50)
@@ -66,7 +86,7 @@ async def webserver():
 
 
 async def main():
-    await asyncio.gather(blink(), webserver())
+    await asyncio.gather(keep_reading(), blink(), webserver())
 
 asyncio.run(main())
 

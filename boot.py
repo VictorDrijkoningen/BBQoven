@@ -1,13 +1,15 @@
 # pylint: skip-file
 
 # This file is executed on every boot (including wake-boot from deepsleep)
-#import esp
-#esp.osdebug(None)
-import os, machine
-#os.dupterm(None, 1) # disable REPL on UART(0)
 import gc
 import webrepl
+import network
+
 webrepl.start()
 gc.collect()
+
+ap = network.WLAN(network.AP_IF)
+ap.config(essid="ReflowOven")
+ap.active(True)
 
 

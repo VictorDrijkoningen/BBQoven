@@ -20,13 +20,12 @@ async def blink():
         await asyncio.sleep(2)
 
 
-def thermistor(pin: int):
-    therm = machine.ADC(pin)
+def thermistor(thermObj):
     # Define the beta value of the thermistor, typically provided in the datasheet
     beta = 3950
 
     # Read the voltage in microvolts and convert it to volts
-    Vr = (3.3*float(therm.read_u16())/65535)
+    Vr = (3.3*float(thermObj.read_u16())/65535)
 
     # Calculate the resistance of the thermistor based on the measured voltage
     Rt = 100_000 * Vr / (3.3 - Vr)
@@ -42,7 +41,7 @@ def thermistor(pin: int):
 
 async def keep_reading():
     while True:
-        print(thermistor(0))
+        print(thermistor(thermometer))
         await asyncio.sleep(1000)
 
 fan = machine.PWM(machine.Pin(5))
@@ -53,6 +52,7 @@ heater = machine.PWM(machine.Pin(4))
 heater.freq(50)
 heater.duty(0)
 
+thermometer = machine.ADC(0)
 
 app = Microdot()
 

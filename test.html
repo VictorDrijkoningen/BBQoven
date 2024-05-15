@@ -1,0 +1,102 @@
+<html>
+    <head>
+        <title>ReflowOven: test</title>
+    </head>
+    <body style="text-align: center;"> 
+    
+       
+
+        <table>
+            <thead>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div style="text-align: center;">
+                            <div style="text-align: center;">
+                                <p id="coolervalue">90</p>
+                                <input onchange="cooler()" type="range" min="0" max="180" value="90" id="cooler">
+                            </div>
+                            <button onclick="cooler_off()">Off</button>
+                        </div>
+                        
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            <div onclick="startbutton()">
+                                <h3>BEP: Reflow Oven TEST</h3>
+                            </div>
+                        </div>
+                        
+                        
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            2
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>
+                        <div style="text-align: center;">
+                            3
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            <div id="messagebox"></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            5
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        
+
+
+
+        <script type="text/javascript">
+            const socket = new WebSocket("ws://"+window.location.host+":80/websocket");
+            var globalstate = 0
+
+            // Listen for messages
+            socket.addEventListener("message", (event) => {
+                console.log("Message from server ", event.data);
+                document.getElementById("messagebox").innerHTML = event.data;
+                globalstate = JSON.parse(event.data);
+            });
+
+        
+
+            function startbutton(){
+                socket.send(JSON.stringify({
+                    'start_pressed': 'start_pressed'
+                }));
+            }
+
+            function cooler() {
+                var x = document.getElementById("cooler").value;
+                document.getElementById("coolervalue").innerHTML = x;
+
+                socket.send(JSON.stringify({
+                    'cooler': x
+                }));
+            }
+            function cooler_off() {
+                var x = document.getElementById("cooler").value;
+                document.getElementById("coolervalue").innerHTML = x;
+
+                socket.send(JSON.stringify({
+                    'cooler': 'off'
+                }));
+            }
+        </script>
+
+    </body>
+</html>

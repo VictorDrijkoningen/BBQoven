@@ -1,12 +1,9 @@
-<html>
-    <head> 
+<!DOCTYPE html>
+    <head>
+        <title>ReflowOven</title>
     </head>
     <body style="text-align: center;"> 
     
-       
-
-
-
         <table>
             <thead>
             </thead>
@@ -18,12 +15,14 @@
                         </div>
                     </td>
                     <td>
-                        <h3>BEP: Reflow Oven</h3>
+                        <div onclick="startbutton()" style="text-align: center;">
+                            <h3>BEP: Reflow Oven</h3>
+                        </div>
                         
                     </td>
                     <td>
                         <div style="text-align: center;">
-                            2
+                            <button onclick="send_refresh()">&#8634;</button>
                         </div>
                     </td>
                 </tr>
@@ -35,8 +34,8 @@
                         </div>
                     </td>
                     <td>
-                        <div style="text-align: center;">
-                            <div id="messagebox"></div>
+                        <div style="width: 70vw; height: 70vh;">
+                            <canvas id="chartcanvas"></canvas>
                         </div>
                     </td>
                     <td>
@@ -48,28 +47,100 @@
             </tbody>
         </table>
 
+          
+          <script src="chart.js"></script>
+          
+          <script>
+            const ctx = document.getElementById('chartcanvas');
+          
+            var chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['0'],
+                    datasets: [{
+                    label: 'Temperatuur (C)',
+                    data: [0],
+                    borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                    }
+                }
+            });
+          </script>
+          
 
 
         <script type="text/javascript">
+
             const socket = new WebSocket("ws://"+window.location.host+":80/websocket");
+            var globalstate = 0
 
             // Listen for messages
             socket.addEventListener("message", (event) => {
-                console.log("Message from server ", event.data);
-                document.getElementById("messagebox").innerHTML = event.data;
+                globalstate = JSON.parse(event.data);
+                // console.log(globalstate);
+                
+                chart.destroy()
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [...Array(globalstate['temp1'].length).keys()],
+                        datasets: [{
+                        label: 'Temperatuur1 (C)',
+                        data: globalstate['temp1'],
+                        borderWidth: 1
+                        },
+                        {
+                        label: 'Temperatuur2 (C)',
+                        data: globalstate['temp2'],
+                        borderWidth: 1
+                        }
+                        ]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    align: 'center',
+                                    text: 'Degrees (C)',
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    align: 'center',
+                                    text: 'Time (seconds back in time)',
+                                }
+                            }
+                        },
+                        animation: false,
+                        transitions: false
+                    }
+                });
+
             });
 
+            var intervalId = window.setInterval(send_refresh, 3000);
 
-
-            function senddata(x) {
-                // var x = document.getElementById("slider1").value;
-                // document.getElementById("slider1value").innerHTML = x;
-
+            function send_refresh(){
                 socket.send(JSON.stringify({
-                    'data': x
+                    'refresh': 'refresh'
                 }));
             }
 
+            function startbutton(){
+                socket.send(JSON.stringify({
+                    'start_pressed': 'start_pressed'
+                }));
+            }
 
         </script>
 

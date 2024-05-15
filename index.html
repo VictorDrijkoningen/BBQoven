@@ -11,7 +11,7 @@
                 <tr>
                     <td>
                         <div style="text-align: center;">
-                            1
+                            <button onclick="send_start()">start</button>
                         </div>
                     </td>
                     <td>
@@ -133,6 +133,12 @@
             function send_refresh(){
                 socket.send(JSON.stringify({
                     'refresh': 'refresh'
+                }));
+            }
+
+            function send_start(){
+                socket.send(JSON.stringify({
+                    'start_run': 'start_run'
                 }));
             }
 

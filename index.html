@@ -15,7 +15,7 @@
                         </div>
                     </td>
                     <td>
-                        <div onclick="startbutton()" style="text-align: center;">
+                        <div style="text-align: center;">
                             <h3>BEP: Reflow Oven</h3>
                         </div>
                         
@@ -34,13 +34,33 @@
                         </div>
                     </td>
                     <td>
-                        <div style="width: 70vw; height: 70vh;">
+                        <div style="width: 80vw;">
                             <canvas id="chartcanvas"></canvas>
                         </div>
                     </td>
                     <td>
                         <div style="text-align: center;">
                             5
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div style="text-align: center;">
+                            6
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            <p id="runningtext"></p>
+                            <p id="heatingtext"></p>
+                            <p id="heatingdutytext"></p>
+                            <p id="coolingtext"></p>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="text-align: center;">
+                            8
                         </div>
                     </td>
                 </tr>
@@ -85,6 +105,11 @@
                 globalstate = JSON.parse(event.data);
                 // console.log(globalstate);
                 
+                document.getElementById("runningtext").innerHTML = 'running:' + globalstate['running'];
+                document.getElementById("heatingtext").innerHTML = 'heating:' + globalstate['heating'];
+                document.getElementById("heatingdutytext").innerHTML = 'heating duty cycle:' + globalstate['heating_duty'];
+                document.getElementById("coolingtext").innerHTML = 'cooling:' + globalstate['cooling'];
+
                 chart.destroy()
 
                 chart = new Chart(ctx, {
@@ -106,7 +131,7 @@
                     options: {
                         scales: {
                             y: {
-                                beginAtZero: true,
+                                beginAtZero: false,
                                 title: {
                                     display: true,
                                     align: 'center',
@@ -128,7 +153,7 @@
 
             });
 
-            var intervalId = window.setInterval(send_refresh, 3000);
+            var intervalId = window.setInterval(send_refresh, 1000);
 
             function send_refresh(){
                 socket.send(JSON.stringify({
@@ -139,12 +164,6 @@
             function send_start(){
                 socket.send(JSON.stringify({
                     'start_run': 'start_run'
-                }));
-            }
-
-            function startbutton(){
-                socket.send(JSON.stringify({
-                    'start_pressed': 'start_pressed'
                 }));
             }
 

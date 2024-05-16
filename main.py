@@ -9,33 +9,42 @@ import math
 import json
 import time
 from pid import PID
-from rotary_irq_esp import RotaryIRQ
+# from rotary_irq_esp import RotaryIRQ
 
 with open(".env") as f:
         env = f.read().split(",")
 
-def curve1():
-    global GLOBAL_STATE
-    runtime = time.time() - GLOBAL_STATE['start_time']
-    if runtime < 120:
-        return 200
-    elif runtime < 180:
-        return 250
-    else:
-        return 0
 
-def encoder_listener():
-    print()
+def curve1(runtime):
+    time_section = [0,60, 90, 120, 150, 300]
+    temp_section = [0,150, 200, 250, 250, 0]
+
+    assert len(time_section) == len(temp_section)
+
+    for i in range(len(time_section)):
+        if runtime < time_section[i]:
+            return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
+
 
 async def update_heater():
     global heater
     global heater_pid
+    global temp1
 
 
     while True:
         await asyncio.sleep(1)
-        heater_pid.setpoint = curve1()
-    # heater.duty(heater_pid)
+        if GLOBAL_STATE['running']:
+            heater_pid.setpoint = curve1()
+            duty = int(heater_pid(thermistor(temp1)))
+            GLOBAL_STATE['heating_duty'] = duty
+            heater.duty(duty)
+            GLOBAL_STATE['heating'] = True
+        else:
+            heater_pid.setpoint = 0
+            GLOBAL_STATE['heating'] = False
+            GLOBAL_STATE['heating_duty'] = 0
+
 
 def disable_servo(device):
     device.duty(0)
@@ -88,7 +97,6 @@ async def update_screen():
     if GLOBAL_STATE['cooling'] == True:
         screen.draw_text
 
-
 def setup_devices():
     global fan
     fan = machine.PWM(machine.Pin(5))
@@ -100,7 +108,8 @@ def setup_devices():
     heater = machine.PWM(machine.Pin(4))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(1,0,0, setpoint=0)
+    heater_pid = PID(1,0.1,0, setpoint=0)
+    heater_pid.output_limits = (0,1023)
 
     global cooler
     cooler = machine.PWM(machine.Pin(13))
@@ -111,14 +120,14 @@ def setup_devices():
     time.sleep(0.25)
     disable_servo(cooler)
 
-    global encoder
-    encoder = RotaryIRQ(pin_num_clk=12, 
-                pin_num_dt=13, 
-                min_val=0,
-                reverse=True, 
-                range_mode=RotaryIRQ.RANGE_UNBOUNDED)
+    # global encoder
+    # encoder = RotaryIRQ(pin_num_clk=12, 
+    #             pin_num_dt=13, 
+    #             min_val=0,
+    #             reverse=True, 
+    #             range_mode=RotaryIRQ.RANGE_UNBOUNDED)
 
-    encoder.add_listener(encoder_listener())
+    # encoder.add_listener(encoder_listener())
 
     global temp1
     temp1 = machine.ADC(machine.Pin(32), atten=machine.ADC.ATTN_2_5DB)
@@ -128,8 +137,9 @@ def setup_devices():
 setup_devices()
 
 GLOBAL_STATE = dict()
-GLOBAL_STATE['enabled'] = False
+GLOBAL_STATE['running'] = False
 GLOBAL_STATE['heating'] = False
+GLOBAL_STATE['heating_duty'] = False
 GLOBAL_STATE['cooling'] = False
 GLOBAL_STATE['start_time'] = False
 GLOBAL_STATE['temp1'] = list()
@@ -173,11 +183,11 @@ async def websocket(request, ws):
             print("ws: "+str(message))
 
         if 'start_pressed' in message.keys():
-            GLOBAL_STATE['enabled'] = not GLOBAL_STATE['enabled']
+            GLOBAL_STATE['running'] = not GLOBAL_STATE['running']
 
         if 'start_run' in message:
             GLOBAL_STATE['start_time'] = time.time()
-            GLOBAL_STATE['enabled'] = True
+            GLOBAL_STATE['running'] = True
 
         if 'cooler' in message.keys():
             if message['cooler'] == 'off':

@@ -35,7 +35,8 @@ async def update_heater():
     while True:
         await asyncio.sleep(1)
         if GLOBAL_STATE['running']:
-            heater_pid.setpoint = curve1()
+            runtime = time.time() - GLOBAL_STATE['start_time']
+            heater_pid.setpoint = curve1(runtime)
             duty = int(heater_pid(thermistor(temp1)))
             GLOBAL_STATE['heating_duty'] = duty
             heater.duty(duty)
@@ -61,22 +62,30 @@ def servo(device, input, inpmin=0, inpmax=180):
 
 def thermistor(thermObj):
     # Define the beta value of the thermistor, typically provided in the datasheet
-    beta = 3950
+    beta = -245.89
 
     # Read the voltage in microvolts and convert it to volts
     Vr = thermObj.read_uv() / 1_000_000
+    # print(str(Vr) + "\n")
 
     # Calculate the resistance of the thermistor based on the measured voltage
-    Rt = 10_000 * Vr / (3.3 - Vr)
+    Rt = 100 * Vr / (3.25 - Vr)
+    # print("weerstand: ", str(Rt), " \n")
 
     # Use the beta parameter and resistance value to calculate the temperature in Kelvin
-    kelvin = 1 / (((math.log(Rt / 10_000)) / beta) + (1 / (273.15 + 25)))
+    kelvin = 1 / (((math.log(Rt / 100)) / beta) + (1 / (273.15 + 22)))
+
+    #steinhart hart model
+    #A = 97.62700699 *10**-3
+    #B = -280.0242989 *10**-4
+    #C = 3597.693498 *10**-7
+    #kelvin = 1/ (A + B* math.log(Rt) + C* (math.log(Rt))**3)
 
     # Convert to Celsius
     Cel = kelvin - 273.15
 
     # Print the temperature values in Celsius
-    # print('Celsius: ' + str(Cel))
+    print('Celsius: ' + str(Cel))
     return Cel
 
 async def update_temp():
@@ -99,13 +108,13 @@ async def update_screen():
 
 def setup_devices():
     global fan
-    fan = machine.PWM(machine.Pin(5))
+    fan = machine.PWM(machine.Pin(26))
     fan.freq(50)
     fan.duty(0)
 
     global heater
     global heater_pid
-    heater = machine.PWM(machine.Pin(4))
+    heater = machine.PWM(machine.Pin(25))
     heater.freq(50)
     heater.duty(0)
     heater_pid = PID(1,0.1,0, setpoint=0)
@@ -130,9 +139,9 @@ def setup_devices():
     # encoder.add_listener(encoder_listener())
 
     global temp1
-    temp1 = machine.ADC(machine.Pin(32), atten=machine.ADC.ATTN_2_5DB)
+    temp1 = machine.ADC(machine.Pin(32), atten=machine.ADC.ATTN_11DB)
     global temp2
-    temp2 = machine.ADC(machine.Pin(33), atten=machine.ADC.ATTN_2_5DB)
+    temp2 = machine.ADC(machine.Pin(33), atten=machine.ADC.ATTN_11DB)
 
 setup_devices()
 

@@ -5,9 +5,9 @@ import numpy
 
 
 
-def curve1(runtime):
-    time_section = [0,60, 90, 120, 150, 300]
-    temp_section = [0,150, 200, 250, 250, 0]
+def curve(runtime):
+    time_section = [0,90, 180, 240, 300]
+    temp_section = [0,150, 200, 250, 0]
 
     assert len(time_section) == len(temp_section)
 
@@ -21,7 +21,7 @@ for i in range(300):
     x.append(i)
 y = list()
 for i in x:
-    y.append(curve1(i))
+    y.append(curve(i))
 
 plt.plot(x,y)
 plt.ylabel('temp')

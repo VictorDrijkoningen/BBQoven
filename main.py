@@ -9,21 +9,45 @@ import math
 import json
 import time
 from pid import PID
+from max6675 import MAX6675
 # from rotary_irq_esp import RotaryIRQ
 
 with open(".env") as f:
         env = f.read().split(",")
 
 
-def curve1(runtime):
-    time_section = [0,60, 90, 120, 150, 300]
-    temp_section = [0,150, 200, 250, 250, 0]
+# def temp_R_253(runtime):
+#     global GLOBAL_STATE
+#     time_section = [0,90, 180, 240, 300]
+#     temp_section = [0,150, 200, 250, 0]
+
+#     assert len(time_section) == len(temp_section)
+
+#     for i in range(len(time_section)):
+#         if runtime < time_section[i]:
+#             return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
+#     GLOBAL_STATE['running'] = False
+#     return 0
+
+
+def temp_curve():
+    global GLOBAL_STATE
+
+    if not GLOBAL_STATE['running']:
+        return 0
+    
+    runtime = time.time() - GLOBAL_STATE['start_time']
+
+    time_section = [0, 120, 500,]
+    temp_section = [150, 150, 150,]
 
     assert len(time_section) == len(temp_section)
 
     for i in range(len(time_section)):
         if runtime < time_section[i]:
             return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
+    GLOBAL_STATE['running'] = False
+    return 0
 
 
 async def update_heater():
@@ -35,8 +59,7 @@ async def update_heater():
     while True:
         await asyncio.sleep(1)
         if GLOBAL_STATE['running']:
-            runtime = time.time() - GLOBAL_STATE['start_time']
-            heater_pid.setpoint = curve1(runtime)
+            heater_pid.setpoint = temp_curve()
             duty = int(heater_pid(thermistor(temp1)))
             GLOBAL_STATE['heating_duty'] = duty
             heater.duty(duty)
@@ -61,42 +84,29 @@ def servo(device, input, inpmin=0, inpmax=180):
         print("Servo not on")
 
 def thermistor(thermObj):
-    # Define the beta value of the thermistor, typically provided in the datasheet
-    beta = -245.89
+    return thermObj.readCelsius()
 
-    # Read the voltage in microvolts and convert it to volts
-    Vr = thermObj.read_uv() / 1_000_000
-    # print(str(Vr) + "\n")
+async def update_fan():
+    global fan
+    global GLOBAL_STATE
+    while True:
+        await asyncio.sleep(1)
+        if GLOBAL_STATE['running']:
+            fan.duty(512)
+        else:
+            await asyncio.sleep(10)
+            fan.duty(0)
 
-    # Calculate the resistance of the thermistor based on the measured voltage
-    Rt = 100 * Vr / (3.25 - Vr)
-    # print("weerstand: ", str(Rt), " \n")
-
-    # Use the beta parameter and resistance value to calculate the temperature in Kelvin
-    kelvin = 1 / (((math.log(Rt / 100)) / beta) + (1 / (273.15 + 22)))
-
-    #steinhart hart model
-    #A = 97.62700699 *10**-3
-    #B = -280.0242989 *10**-4
-    #C = 3597.693498 *10**-7
-    #kelvin = 1/ (A + B* math.log(Rt) + C* (math.log(Rt))**3)
-
-    # Convert to Celsius
-    Cel = kelvin - 273.15
-
-    # Print the temperature values in Celsius
-    print('Celsius: ' + str(Cel))
-    return Cel
 
 async def update_temp():
     global thermometer
     global GLOBAL_STATE
     while True:
-        GLOBAL_STATE['temp1'].insert(0, round(thermistor(temp1),1))
-        GLOBAL_STATE['temp2'].insert(0, round(thermistor(temp2),1))
+        GLOBAL_STATE['temp1'].insert(0, thermistor(temp1))
+        GLOBAL_STATE['target_temp'].insert(0, round(temp_curve(),1))
         if len(GLOBAL_STATE['temp1']) > int(GLOBAL_STATE['graph_length']):
             GLOBAL_STATE['temp1'].pop()
-            GLOBAL_STATE['temp2'].pop()
+            GLOBAL_STATE['target_temp'].pop()
         await asyncio.sleep(1)
 
 async def update_screen():
@@ -117,8 +127,8 @@ def setup_devices():
     heater = machine.PWM(machine.Pin(25))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(1,0.1,0, setpoint=0)
-    heater_pid.output_limits = (0,1023)
+    heater_pid = PID(5,0.1,0, setpoint=0)
+    heater_pid.output_limits = (0,50)
 
     global cooler
     cooler = machine.PWM(machine.Pin(13))
@@ -139,20 +149,23 @@ def setup_devices():
     # encoder.add_listener(encoder_listener())
 
     global temp1
-    temp1 = machine.ADC(machine.Pin(32), atten=machine.ADC.ATTN_11DB)
-    global temp2
-    temp2 = machine.ADC(machine.Pin(33), atten=machine.ADC.ATTN_11DB)
+    # temp1 = machine.SPI(2, baudrate=400, polarity=0, phase=0, bits=8, firstbit=0, sck=machine.Pin(18), mosi=machine.Pin(23), miso=machine.Pin(19))
+    temp1 = MAX6675(so_pin=19, cs_pin=22, sck_pin=18)
+    global CS_temp1
+    CS_temp1 = machine.Pin(22)
+    CS_temp1.value(1)
+    
 
 setup_devices()
 
 GLOBAL_STATE = dict()
 GLOBAL_STATE['running'] = False
+GLOBAL_STATE['target_temp'] = list()
 GLOBAL_STATE['heating'] = False
 GLOBAL_STATE['heating_duty'] = False
 GLOBAL_STATE['cooling'] = False
 GLOBAL_STATE['start_time'] = False
 GLOBAL_STATE['temp1'] = list()
-GLOBAL_STATE['temp2'] = list()
 GLOBAL_STATE['graph_length'] = 120
 
 
@@ -191,9 +204,6 @@ async def websocket(request, ws):
         if not 'refresh' in message:
             print("ws: "+str(message))
 
-        if 'start_pressed' in message.keys():
-            GLOBAL_STATE['running'] = not GLOBAL_STATE['running']
-
         if 'start_run' in message:
             GLOBAL_STATE['start_time'] = time.time()
             GLOBAL_STATE['running'] = True
@@ -203,6 +213,9 @@ async def websocket(request, ws):
                 disable_servo(cooler)
             else:
                 servo(cooler, message['cooler'])
+        if 'STOP' in message:
+            GLOBAL_STATE['running'] = False
+            GLOBAL_STATE['heating'] = False
         
         await ws.send(json.dumps(GLOBAL_STATE))
 
@@ -215,7 +228,15 @@ async def webserver():
 
 
 async def main():
-    await asyncio.gather(update_temp(), webserver(), update_heater())
+    await asyncio.gather(update_temp(), webserver(), update_heater(), update_fan())
 
-asyncio.run(main())
+def start():
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(e)
 
+    heater.duty(0)
+    fan.duty(0)
+
+start()

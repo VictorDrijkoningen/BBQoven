@@ -3,7 +3,7 @@
         <title>ReflowOven</title>
     </head>
     <body style="text-align: center;"> 
-    
+
         <table>
             <thead>
             </thead>
@@ -11,7 +11,8 @@
                 <tr>
                     <td>
                         <div style="text-align: center;">
-                            <button onclick="send_start()">start</button>
+                            <button onclick="send_start()" style="background-color: green;">start</button>
+                            <button onclick="send_stop()" style="background-color: red;">STOP</button>
                         </div>
                     </td>
                     <td>
@@ -34,7 +35,7 @@
                         </div>
                     </td>
                     <td>
-                        <div style="width: 80vw;">
+                        <div style="width: 70vw;">
                             <canvas id="chartcanvas"></canvas>
                         </div>
                     </td>
@@ -55,6 +56,7 @@
                             <p id="runningtext"></p>
                             <p id="heatingtext"></p>
                             <p id="heatingdutytext"></p>
+                            <p id="targettemptext"></p>
                             <p id="coolingtext"></p>
                         </div>
                     </td>
@@ -68,11 +70,11 @@
         </table>
 
           
-          <script src="chart.js"></script>
-          
-          <script>
+        <script src="chart.js"></script>
+        
+        <script>
             const ctx = document.getElementById('chartcanvas');
-          
+        
             var chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -91,8 +93,8 @@
                     }
                 }
             });
-          </script>
-          
+        </script>
+        
 
 
         <script type="text/javascript">
@@ -105,10 +107,11 @@
                 globalstate = JSON.parse(event.data);
                 // console.log(globalstate);
                 
-                document.getElementById("runningtext").innerHTML = 'running:' + globalstate['running'];
-                document.getElementById("heatingtext").innerHTML = 'heating:' + globalstate['heating'];
-                document.getElementById("heatingdutytext").innerHTML = 'heating duty cycle:' + globalstate['heating_duty'];
-                document.getElementById("coolingtext").innerHTML = 'cooling:' + globalstate['cooling'];
+                document.getElementById("runningtext").innerHTML = 'running: ' + globalstate['running'];
+                document.getElementById("heatingtext").innerHTML = 'heating: ' + globalstate['heating'];
+                globalstate['heating_percentage'] = (parseFloat(globalstate['heating_duty']) / 10.23).toFixed(0);
+                document.getElementById("heatingdutytext").innerHTML = 'heating duty cycle: ' + globalstate['heating_percentage'] + "%";
+                document.getElementById("coolingtext").innerHTML = 'cooling: ' + globalstate['cooling'];
 
                 chart.destroy()
 
@@ -122,8 +125,8 @@
                         borderWidth: 1
                         },
                         {
-                        label: 'Temperatuur2 (C)',
-                        data: globalstate['temp2'],
+                        label: 'Target Temperatuur (C)',
+                        data: globalstate['target_temp'],
                         borderWidth: 1
                         }
                         ]
@@ -164,6 +167,12 @@
             function send_start(){
                 socket.send(JSON.stringify({
                     'start_run': 'start_run'
+                }));
+            }
+
+            function send_stop(){
+                socket.send(JSON.stringify({
+                    'STOP': 'STOP'
                 }));
             }
 

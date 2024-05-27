@@ -6,11 +6,11 @@ import webrepl
 import network
 
 webrepl.start()
-gc.collect()
 
 network.hostname('ReflowOven')
 ap = network.WLAN(network.AP_IF)
 ap.config(essid="ReflowOven")
 ap.active(True)
 
+gc.collect()
 

@@ -34,6 +34,7 @@ class MAX6675():
         # print(data[1:-3])
 
         if data[-3] == 1:
+            print('Thermocouple error detected')
             raise ValueError("Thermocouple error detected")
 
         return data[1:-3]

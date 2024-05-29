@@ -18,6 +18,9 @@
                     <td>
                         <div style="text-align: center;">
                             <h3>BEP: Reflow Oven</h3>
+                            <div id="errorid" style="display: none; background-color: red;">
+                                <h1>ERROR DETECTED</h1>
+                            </div>
                         </div>
                         
                     </td>
@@ -35,7 +38,7 @@
                         </div>
                     </td>
                     <td>
-                        <div style="width: 70vw;">
+                        <div style="width: 60vw;">
                             <canvas id="chartcanvas"></canvas>
                         </div>
                     </td>
@@ -58,6 +61,8 @@
                             <p id="heatingdutytext"></p>
                             <p id="targettemptext"></p>
                             <p id="coolingtext"></p>
+                            <p id="coolingpostext"></p>
+                            <p id="memtext"></p>
                         </div>
                     </td>
                     <td>
@@ -112,6 +117,12 @@
                 globalstate['heating_percentage'] = (parseFloat(globalstate['heating_duty']) / 10.23).toFixed(0);
                 document.getElementById("heatingdutytext").innerHTML = 'heating duty cycle: ' + globalstate['heating_percentage'] + "%";
                 document.getElementById("coolingtext").innerHTML = 'cooling: ' + globalstate['cooling'];
+                document.getElementById("coolingpostext").innerHTML = 'cooling position: ' + globalstate['cooling_pos'];
+                document.getElementById("memtext").innerHTML = 'memory free: ' + globalstate['memfree'] + "kb";
+
+                if (globalstate['error_detected'] == true){
+                    document.getElementById("errorid").style.display = 'block';
+                }
 
                 chart.destroy()
 
@@ -134,7 +145,7 @@
                     options: {
                         scales: {
                             y: {
-                                beginAtZero: false,
+                                beginAtZero: true,
                                 title: {
                                     display: true,
                                     align: 'center',

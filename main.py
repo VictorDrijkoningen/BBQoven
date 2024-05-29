@@ -1,6 +1,6 @@
 # pylint: skip-file
 
-import machine
+from machine import Pin, PWM
 import uasyncio as asyncio
 from microdot import Microdot,send_file
 import gc
@@ -10,27 +10,22 @@ import json
 import time
 from pid import PID
 from max6675 import MAX6675
+from micropython import alloc_emergency_exception_buf
 # from rotary_irq_esp import RotaryIRQ
+
+alloc_emergency_exception_buf(200)
 
 with open(".env") as f:
         env = f.read().split(",")
 
 
-# def temp_R_253(runtime):
-#     global GLOBAL_STATE
+# def temp_R_253():
 #     time_section = [0,90, 180, 240, 300]
 #     temp_section = [0,150, 200, 250, 0]
 
-#     assert len(time_section) == len(temp_section)
-
-#     for i in range(len(time_section)):
-#         if runtime < time_section[i]:
-#             return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
-#     GLOBAL_STATE['running'] = False
-#     return 0
 
 
-def temp_curve():
+def temp_curve_points():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
@@ -38,8 +33,8 @@ def temp_curve():
     
     runtime = time.time() - GLOBAL_STATE['start_time']
 
-    time_section = [0, 120, 500,]
-    temp_section = [150, 150, 150,]
+    time_section = [0,90, 180, 240, 260, 630]
+    temp_section = [30,75,75, 150, 150, 20]
 
     assert len(time_section) == len(temp_section)
 
@@ -49,26 +44,64 @@ def temp_curve():
     GLOBAL_STATE['running'] = False
     return 0
 
+def temp_curve():
+    global GLOBAL_STATE
+
+    if not GLOBAL_STATE['running']:
+        return 0
+
+    runtime = time.time() - GLOBAL_STATE['start_time']
+
+    return 112.5 + 12.5*math.sin(runtime/40 - math.pi/2)
+
+using_curve = temp_curve_points
 
 async def update_heater():
     global heater
     global heater_pid
+    global cooler
+    global cooler_pid
     global temp1
+
+    target_temp = using_curve()
+    pos = 0
 
 
     while True:
         await asyncio.sleep(1)
-        if GLOBAL_STATE['running']:
-            heater_pid.setpoint = temp_curve()
-            duty = int(heater_pid(thermistor(temp1)))
+        target_temp_last = target_temp
+        target_temp = using_curve()
+        actual_temp = thermocouple(temp1)
+
+
+        if GLOBAL_STATE['running'] and target_temp + 0.25 > target_temp_last:
+            heater_pid.setpoint = target_temp
+            duty = int(heater_pid(actual_temp))
             GLOBAL_STATE['heating_duty'] = duty
             heater.duty(duty)
+            GLOBAL_STATE['cooling'] = False
             GLOBAL_STATE['heating'] = True
         else:
-            heater_pid.setpoint = 0
-            GLOBAL_STATE['heating'] = False
+            heater.duty(0)
             GLOBAL_STATE['heating_duty'] = 0
+        
+        if GLOBAL_STATE['running'] and target_temp -0.25 < target_temp_last:
+            cooler_pid.setpoint = target_temp
+            pos = int(cooler_pid(actual_temp))
+            GLOBAL_STATE['cooling_pos'] = pos
+            servo(cooler, pos)
+            GLOBAL_STATE['cooling'] = True
+            GLOBAL_STATE['heating'] = False
+        else:
+            if not pos == 90:
+                pos = 90
+                servo(cooler, pos)
+                await asyncio.sleep(1)
+            GLOBAL_STATE['cooling_pos'] = pos
 
+        if not GLOBAL_STATE['running']:
+            disable_servo(cooler)
+            
 
 def disable_servo(device):
     device.duty(0)
@@ -83,18 +116,29 @@ def servo(device, input, inpmin=0, inpmax=180):
     except:
         print("Servo not on")
 
-def thermistor(thermObj):
-    return thermObj.readCelsius()
+def thermocouple(thermObj):
+    global GLOBAL_STATE
+    try:
+        out = thermObj.readCelsius()
+        return out
+    except ValueError:
+        GLOBAL_STATE['running'] = False
+        GLOBAL_STATE['error_detected'] = True
+        return -1
 
 async def update_fan():
     global fan
     global GLOBAL_STATE
+    been_on = False
     while True:
         await asyncio.sleep(1)
         if GLOBAL_STATE['running']:
             fan.duty(512)
+            been_on = True
         else:
-            await asyncio.sleep(10)
+            if been_on:
+                await asyncio.sleep(240)
+                been_on = False
             fan.duty(0)
 
 
@@ -102,38 +146,35 @@ async def update_temp():
     global thermometer
     global GLOBAL_STATE
     while True:
-        GLOBAL_STATE['temp1'].insert(0, thermistor(temp1))
-        GLOBAL_STATE['target_temp'].insert(0, round(temp_curve(),1))
+        GLOBAL_STATE['temp1'].insert(0, thermocouple(temp1))
+        GLOBAL_STATE['target_temp'].insert(0, round(using_curve(),2))
         if len(GLOBAL_STATE['temp1']) > int(GLOBAL_STATE['graph_length']):
             GLOBAL_STATE['temp1'].pop()
             GLOBAL_STATE['target_temp'].pop()
         await asyncio.sleep(1)
-
-async def update_screen():
-    global screen
-    global GLOBAL_STATE
-    
-    if GLOBAL_STATE['cooling'] == True:
-        screen.draw_text
+        GLOBAL_STATE['memfree'] = round(gc.mem_free()/1024)
 
 def setup_devices():
     global fan
-    fan = machine.PWM(machine.Pin(26))
+    fan = PWM(Pin(26))
     fan.freq(50)
     fan.duty(0)
 
     global heater
     global heater_pid
-    heater = machine.PWM(machine.Pin(25))
+    heater = PWM(Pin(25))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(5,0.1,0, setpoint=0)
-    heater_pid.output_limits = (0,50)
+    heater_pid = PID(25,0.2,10, setpoint=0)
+    heater_pid.output_limits = (0,820)
 
     global cooler
-    cooler = machine.PWM(machine.Pin(13))
+    global cooler_pid
+    cooler = PWM(Pin(13))
     cooler.freq(50)
     cooler.duty(0)
+    cooler_pid = PID(-5,0,0, setpoint=0)
+    cooler_pid.output_limits = (135,180)
 
     servo(cooler, 90)
     time.sleep(0.25)
@@ -149,12 +190,9 @@ def setup_devices():
     # encoder.add_listener(encoder_listener())
 
     global temp1
-    # temp1 = machine.SPI(2, baudrate=400, polarity=0, phase=0, bits=8, firstbit=0, sck=machine.Pin(18), mosi=machine.Pin(23), miso=machine.Pin(19))
     temp1 = MAX6675(so_pin=19, cs_pin=22, sck_pin=18)
-    global CS_temp1
-    CS_temp1 = machine.Pin(22)
-    CS_temp1.value(1)
-    
+    global temp2
+    temp2 = MAX6675(so_pin=19, cs_pin=23, sck_pin=18)
 
 setup_devices()
 
@@ -164,9 +202,13 @@ GLOBAL_STATE['target_temp'] = list()
 GLOBAL_STATE['heating'] = False
 GLOBAL_STATE['heating_duty'] = False
 GLOBAL_STATE['cooling'] = False
+GLOBAL_STATE['cooling_pos'] = 0
 GLOBAL_STATE['start_time'] = False
 GLOBAL_STATE['temp1'] = list()
+GLOBAL_STATE['temp2'] = list()
 GLOBAL_STATE['graph_length'] = 120
+GLOBAL_STATE['memfree'] = 0
+GLOBAL_STATE['error_detected'] = False
 
 
 
@@ -175,10 +217,6 @@ app = Microdot()
 @app.route('/', methods=['GET'])
 async def index(request):
     return send_file('index.html')
-
-@app.route('/test', methods=['GET'])
-async def test(request):
-    return send_file('test.html')
 
 @app.route('/chart.js', methods=['GET'])
 async def chart(request):
@@ -208,14 +246,15 @@ async def websocket(request, ws):
             GLOBAL_STATE['start_time'] = time.time()
             GLOBAL_STATE['running'] = True
 
-        if 'cooler' in message.keys():
-            if message['cooler'] == 'off':
-                disable_servo(cooler)
-            else:
-                servo(cooler, message['cooler'])
+        # if 'cooler' in message.keys():
+        #     if message['cooler'] == 'off':
+        #         disable_servo(cooler)
+        #     else:
+        #         servo(cooler, message['cooler'])
         if 'STOP' in message:
             GLOBAL_STATE['running'] = False
             GLOBAL_STATE['heating'] = False
+            GLOBAL_STATE['cooling'] = False
         
         await ws.send(json.dumps(GLOBAL_STATE))
 
@@ -228,7 +267,7 @@ async def webserver():
 
 
 async def main():
-    await asyncio.gather(update_temp(), webserver(), update_heater(), update_fan())
+    await asyncio.gather(update_temp(), webserver(), update_heater(), update_fan(), )
 
 def start():
     try:
@@ -237,6 +276,5 @@ def start():
         print(e)
 
     heater.duty(0)
-    fan.duty(0)
 
 start()

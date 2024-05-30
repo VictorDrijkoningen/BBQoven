@@ -133,12 +133,20 @@
                         datasets: [{
                         label: 'Temperatuur1 (C)',
                         data: globalstate['temp1'],
-                        borderWidth: 1
+                        borderWidth: 1,
+                        backgroundColor: 'rgba(0, 0, 255, 0.5)'
+                        },
+                        {
+                        label: 'Temperatuur2 (C)',
+                        data: globalstate['temp2'],
+                        borderWidth: 1,
+                        backgroundColor: 'rgba(0, 255, 0, 0.5)'
                         },
                         {
                         label: 'Target Temperatuur (C)',
                         data: globalstate['target_temp'],
-                        borderWidth: 1
+                        borderWidth: 1,
+                        backgroundColor: 'rgba(255, 0, 0, 0.5)'
                         }
                         ]
                     },
@@ -156,7 +164,7 @@
                                 title: {
                                     display: true,
                                     align: 'center',
-                                    text: 'Time (seconds back in time)',
+                                    text: 'Time (seconds)',
                                 }
                             }
                         },
@@ -167,7 +175,7 @@
 
             });
 
-            var intervalId = window.setInterval(send_refresh, 1000);
+            var intervalId = window.setInterval(send_refresh, 2500);
 
             function send_refresh(){
                 socket.send(JSON.stringify({

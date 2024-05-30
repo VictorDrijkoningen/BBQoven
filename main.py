@@ -13,11 +13,7 @@ from max6675 import MAX6675
 from micropython import alloc_emergency_exception_buf
 # from rotary_irq_esp import RotaryIRQ
 
-alloc_emergency_exception_buf(200)
-
-with open(".env") as f:
-        env = f.read().split(",")
-
+alloc_emergency_exception_buf(100)
 
 # def temp_R_253():
 #     time_section = [0,90, 180, 240, 300]
@@ -44,7 +40,26 @@ def temp_curve_points():
     GLOBAL_STATE['running'] = False
     return 0
 
-def temp_curve():
+def temp_curve_points_test():
+    global GLOBAL_STATE
+
+    if not GLOBAL_STATE['running']:
+        return 0
+    
+    runtime = time.time() - GLOBAL_STATE['start_time']
+
+    time_section = [0,180, 300, 500, ]
+    temp_section = [30,100, 100, 0, ]
+
+    assert len(time_section) == len(temp_section)
+
+    for i in range(len(time_section)):
+        if runtime < time_section[i]:
+            return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
+    GLOBAL_STATE['running'] = False
+    return 0
+
+def temp_curve_sine():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
@@ -54,7 +69,19 @@ def temp_curve():
 
     return 112.5 + 12.5*math.sin(runtime/40 - math.pi/2)
 
-using_curve = temp_curve_points
+def one_temp():
+    global GLOBAL_STATE
+
+    if not GLOBAL_STATE['running']:
+        return 0
+    runtime = time.time() - GLOBAL_STATE['start_time']
+    if runtime < 180:
+        return 250
+    else:
+        GLOBAL_STATE['running'] = False
+        return 0
+
+using_curve = one_temp
 
 async def update_heater():
     global heater
@@ -146,11 +173,13 @@ async def update_temp():
     global thermometer
     global GLOBAL_STATE
     while True:
-        GLOBAL_STATE['temp1'].insert(0, thermocouple(temp1))
-        GLOBAL_STATE['target_temp'].insert(0, round(using_curve(),2))
+        GLOBAL_STATE['temp1'].append(thermocouple(temp1))
+        GLOBAL_STATE['temp2'].append(thermocouple(temp2))
+        GLOBAL_STATE['target_temp'].append(round(using_curve(),2))
         if len(GLOBAL_STATE['temp1']) > int(GLOBAL_STATE['graph_length']):
-            GLOBAL_STATE['temp1'].pop()
-            GLOBAL_STATE['target_temp'].pop()
+            GLOBAL_STATE['temp1'].pop(0)
+            GLOBAL_STATE['temp2'].pop(0)
+            GLOBAL_STATE['target_temp'].pop(0)
         await asyncio.sleep(1)
         GLOBAL_STATE['memfree'] = round(gc.mem_free()/1024)
 
@@ -175,19 +204,6 @@ def setup_devices():
     cooler.duty(0)
     cooler_pid = PID(-5,0,0, setpoint=0)
     cooler_pid.output_limits = (135,180)
-
-    servo(cooler, 90)
-    time.sleep(0.25)
-    disable_servo(cooler)
-
-    # global encoder
-    # encoder = RotaryIRQ(pin_num_clk=12, 
-    #             pin_num_dt=13, 
-    #             min_val=0,
-    #             reverse=True, 
-    #             range_mode=RotaryIRQ.RANGE_UNBOUNDED)
-
-    # encoder.add_listener(encoder_listener())
 
     global temp1
     temp1 = MAX6675(so_pin=19, cs_pin=22, sck_pin=18)
@@ -221,11 +237,6 @@ async def index(request):
 @app.route('/chart.js', methods=['GET'])
 async def chart(request):
     return send_file('chart.js')
-
-@app.route('/shutdown', methods=['GET'])
-async def shutdown(request):
-    request.app.shutdown()
-    return 'shutting down'
 
 @app.route('/mem', methods=['GET'])
 async def mem(request):
@@ -274,6 +285,7 @@ def start():
         asyncio.run(main())
     except Exception as e:
         print(e)
+        print("ERROR")
 
     heater.duty(0)
 

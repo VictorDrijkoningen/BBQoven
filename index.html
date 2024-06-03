@@ -19,14 +19,14 @@
                         <div style="text-align: center;">
                             <h3>BEP: Reflow Oven</h3>
                             <div id="errorid" style="display: none; background-color: red;">
-                                <h1>ERROR DETECTED</h1>
+                                <h1>THERMOCOUPLE ERROR DETECTED</h1>
                             </div>
                         </div>
                         
                     </td>
                     <td>
                         <div style="text-align: center;">
-                            <button onclick="send_refresh()">&#8634;</button>
+                            <button onclick="refresh()">&#8634;</button>
                         </div>
                     </td>
                 </tr>
@@ -51,23 +51,28 @@
                 <tr>
                     <td>
                         <div style="text-align: center;">
-                            6
+                            <p id="runningtext"></p>
+                            <p id="memtext"></p>
+                            
                         </div>
                     </td>
                     <td>
                         <div style="text-align: center;">
-                            <p id="runningtext"></p>
                             <p id="heatingtext"></p>
                             <p id="heatingdutytext"></p>
                             <p id="targettemptext"></p>
                             <p id="coolingtext"></p>
                             <p id="coolingpostext"></p>
-                            <p id="memtext"></p>
                         </div>
                     </td>
                     <td>
                         <div style="text-align: center;">
-                            8
+                            <a id="downloada" href="/temps.csv" download="TemperatuurData.csv">Download datafile</a>
+                            <br>
+                            <br>
+                            <br>
+                            <button onclick="send_shutdown()" style="background-color: red;">Shutdown and start webrepl</button>
+
                         </div>
                     </td>
                 </tr>
@@ -103,13 +108,20 @@
 
 
         <script type="text/javascript">
+            
 
-            const socket = new WebSocket("ws://"+window.location.host+":80/websocket");
-            var globalstate = 0
+            function httpGet(theUrl)
+            {
+                var xmlHttp = new XMLHttpRequest();
+                xmlHttp.open( "GET", theUrl, false ); // false for synchronous request
+                xmlHttp.send( null );
+                return xmlHttp.responseText;
+            }
 
-            // Listen for messages
-            socket.addEventListener("message", (event) => {
-                globalstate = JSON.parse(event.data);
+            function refresh(){
+                data = httpGet("/data")
+
+                globalstate = JSON.parse(data);
                 // console.log(globalstate);
                 
                 document.getElementById("runningtext").innerHTML = 'running: ' + globalstate['running'];
@@ -172,28 +184,30 @@
                         transitions: false
                     }
                 });
-
-            });
-
-            var intervalId = window.setInterval(send_refresh, 2500);
-
-            function send_refresh(){
-                socket.send(JSON.stringify({
-                    'refresh': 'refresh'
-                }));
             }
 
             function send_start(){
-                socket.send(JSON.stringify({
-                    'start_run': 'start_run'
-                }));
+                httpGet("/start")
             }
 
             function send_stop(){
-                socket.send(JSON.stringify({
-                    'STOP': 'STOP'
-                }));
+                httpGet("/stop")
+
             }
+
+            function send_shutdown(){
+                httpGet("/shutdown")
+
+            }
+
+            function set_download_date(){
+                const today = new Date()
+                document.getElementById("downloada").download = "Temp data "+today.toLocaleDateString("nl-NL")+" "+today.getHours()+"-"+today.getMinutes()+"-"+today.getSeconds()+".csv"
+            }
+            var intervalId = window.setInterval(refresh, 2000);
+            var intervalId2 = window.setInterval(set_download_date, 1000);
+
+
 
         </script>
 

@@ -1,10 +1,9 @@
 # pylint: skip-file
-
+import os
 from machine import Pin, PWM
 import uasyncio as asyncio
 from microdot import Microdot,send_file
 import gc
-from ws import with_websocket
 import math
 import json
 import time
@@ -19,18 +18,18 @@ alloc_emergency_exception_buf(100)
 #     time_section = [0,90, 180, 240, 300]
 #     temp_section = [0,150, 200, 250, 0]
 
-
+outfile = "temps.csv"
 
 def temp_curve_points():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
-        return 0
+        return 20
     
     runtime = time.time() - GLOBAL_STATE['start_time']
 
-    time_section = [0,90, 180, 240, 260, 630]
-    temp_section = [30,75,75, 150, 150, 20]
+    time_section = [0,150, 270, 330, 360, 470]
+    temp_section = [30,100, 110, 150, 150, 30]
 
     assert len(time_section) == len(temp_section)
 
@@ -38,13 +37,13 @@ def temp_curve_points():
         if runtime < time_section[i]:
             return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
     GLOBAL_STATE['running'] = False
-    return 0
+    return 20
 
 def temp_curve_points_test():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
-        return 0
+        return 20
     
     runtime = time.time() - GLOBAL_STATE['start_time']
 
@@ -57,13 +56,13 @@ def temp_curve_points_test():
         if runtime < time_section[i]:
             return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
     GLOBAL_STATE['running'] = False
-    return 0
+    return 20
 
 def temp_curve_sine():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
-        return 0
+        return 20
 
     runtime = time.time() - GLOBAL_STATE['start_time']
 
@@ -73,15 +72,15 @@ def one_temp():
     global GLOBAL_STATE
 
     if not GLOBAL_STATE['running']:
-        return 0
+        return 20
     runtime = time.time() - GLOBAL_STATE['start_time']
     if runtime < 180:
-        return 250
+        return 150
     else:
         GLOBAL_STATE['running'] = False
-        return 0
+        return 20
 
-using_curve = one_temp
+using_curve = temp_curve_points
 
 async def update_heater():
     global heater
@@ -94,11 +93,13 @@ async def update_heater():
     pos = 0
 
 
-    while True:
+    while not GLOBAL_STATE['shutdown']:
         await asyncio.sleep(1)
         target_temp_last = target_temp
         target_temp = using_curve()
         actual_temp = thermocouple(temp1)
+        # print("update heater: ", actual_temp, "  ", time.time())
+        # print("update target: ", target_temp)
 
 
         if GLOBAL_STATE['running'] and target_temp + 0.25 > target_temp_last:
@@ -108,6 +109,8 @@ async def update_heater():
             heater.duty(duty)
             GLOBAL_STATE['cooling'] = False
             GLOBAL_STATE['heating'] = True
+            # print("update heater duty: ", duty)
+
         else:
             heater.duty(0)
             GLOBAL_STATE['heating_duty'] = 0
@@ -128,6 +131,8 @@ async def update_heater():
 
         if not GLOBAL_STATE['running']:
             disable_servo(cooler)
+
+        
             
 
 def disable_servo(device):
@@ -157,31 +162,52 @@ async def update_fan():
     global fan
     global GLOBAL_STATE
     been_on = False
-    while True:
-        await asyncio.sleep(1)
+    while not GLOBAL_STATE['shutdown']:
+        await asyncio.sleep(5)
         if GLOBAL_STATE['running']:
-            fan.duty(512)
+            fan.duty(600)
             been_on = True
         else:
             if been_on:
                 await asyncio.sleep(240)
                 been_on = False
-            fan.duty(0)
+            fan.duty(450)
 
 
 async def update_temp():
     global thermometer
+    global heater
+    global heater_pid
+    global fan
     global GLOBAL_STATE
-    while True:
-        GLOBAL_STATE['temp1'].append(thermocouple(temp1))
-        GLOBAL_STATE['temp2'].append(thermocouple(temp2))
+    with open(outfile, mode="w") as f:
+        f.write("time,target_temp,t1,t2,heating_duty,cooling_pos,fan_duty, PID:"+str(heater_pid.Kp)+"-"+str(heater_pid.Ki)+"-"+str(heater_pid.Kd)+"\n")
+    
+    while not GLOBAL_STATE['shutdown']:
+
+        await asyncio.sleep(1)
+        t1 = thermocouple(temp1)
+        t2 = thermocouple(temp2)
+        GLOBAL_STATE['temp1'].append(t1)
+        GLOBAL_STATE['temp2'].append(t2)
+
+        if GLOBAL_STATE['download']:
+            GLOBAL_STATE['not_saving'] = True
+        else:
+            GLOBAL_STATE['not_saving'] = False
+            try:
+                with open(outfile, mode="a") as f:
+                    f.write(str(time.time())+","+str(using_curve())+","+str(t1)+","+str(t2)+","+str(heater.duty())+","+str(GLOBAL_STATE['cooling_pos'])+","+str(fan.duty())+"\n")
+            except Exception as e:
+                print("writing file error!! [", e, "]")
+        
         GLOBAL_STATE['target_temp'].append(round(using_curve(),2))
         if len(GLOBAL_STATE['temp1']) > int(GLOBAL_STATE['graph_length']):
             GLOBAL_STATE['temp1'].pop(0)
             GLOBAL_STATE['temp2'].pop(0)
             GLOBAL_STATE['target_temp'].pop(0)
-        await asyncio.sleep(1)
         GLOBAL_STATE['memfree'] = round(gc.mem_free()/1024)
+        gc.collect()
 
 def setup_devices():
     global fan
@@ -194,16 +220,16 @@ def setup_devices():
     heater = PWM(Pin(25))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(25,0.2,10, setpoint=0)
-    heater_pid.output_limits = (0,820)
+    heater_pid = PID(110,0,45, setpoint=20, )
+    heater_pid.output_limits = (0,1023)
 
     global cooler
     global cooler_pid
     cooler = PWM(Pin(13))
     cooler.freq(50)
     cooler.duty(0)
-    cooler_pid = PID(-5,0,0, setpoint=0)
-    cooler_pid.output_limits = (135,180)
+    cooler_pid = PID(-7,0,0, setpoint=20)
+    cooler_pid.output_limits = (120,180)
 
     global temp1
     temp1 = MAX6675(so_pin=19, cs_pin=22, sck_pin=18)
@@ -225,8 +251,8 @@ GLOBAL_STATE['temp2'] = list()
 GLOBAL_STATE['graph_length'] = 120
 GLOBAL_STATE['memfree'] = 0
 GLOBAL_STATE['error_detected'] = False
-
-
+GLOBAL_STATE['download'] = False
+GLOBAL_STATE['shutdown'] = False
 
 app = Microdot()
 
@@ -238,39 +264,45 @@ async def index(request):
 async def chart(request):
     return send_file('chart.js')
 
+
+@app.route('/shutdown', methods=['GET'])
+async def shutdown(request):
+    heater.duty(0)
+    fan.duty(400)
+    request.app.shutdown()
+    GLOBAL_STATE['shutdown'] = True
+    
+
+
+@app.route('/start', methods=['GET'])
+async def start(request):
+    print("start signal")
+    GLOBAL_STATE['start_time'] = time.time()
+    GLOBAL_STATE['running'] = True
+
+@app.route('/stop', methods=['GET'])
+async def stop(request):
+    print("stop signal")
+    GLOBAL_STATE['running'] = False
+    GLOBAL_STATE['heating'] = False
+    GLOBAL_STATE['cooling'] = False
+
+@app.route('/temps.csv', methods=['GET'])
+async def temp(request):
+    GLOBAL_STATE['download'] = True
+    while not GLOBAL_STATE['not_saving']:
+        await asyncio.sleep(0.5)
+    out = send_file('temps.csv')
+    GLOBAL_STATE['download'] = False
+    return out
+
+@app.route('/data', methods=['GET'])
+async def data(request):
+    return json.dumps(GLOBAL_STATE)
+
 @app.route('/mem', methods=['GET'])
 async def mem(request):
     return str(gc.mem_alloc()) + " used, " +  str(gc.mem_free()) + " free"
-
-@app.route('/websocket')
-@with_websocket
-async def websocket(request, ws):
-    global GLOBAL_STATE
-    while True:
-        message = await ws.receive()
-        message = json.loads(message)
-
-        if not 'refresh' in message:
-            print("ws: "+str(message))
-
-        if 'start_run' in message:
-            GLOBAL_STATE['start_time'] = time.time()
-            GLOBAL_STATE['running'] = True
-
-        # if 'cooler' in message.keys():
-        #     if message['cooler'] == 'off':
-        #         disable_servo(cooler)
-        #     else:
-        #         servo(cooler, message['cooler'])
-        if 'STOP' in message:
-            GLOBAL_STATE['running'] = False
-            GLOBAL_STATE['heating'] = False
-            GLOBAL_STATE['cooling'] = False
-        
-        await ws.send(json.dumps(GLOBAL_STATE))
-
-
-
 
 
 async def webserver():
@@ -288,5 +320,7 @@ def start():
         print("ERROR")
 
     heater.duty(0)
+    import webrepl
+    webrepl.start()
 
 start()

@@ -1,16 +1,14 @@
 # pylint: skip-file
 
 # This file is executed on every boot (including wake-boot from deepsleep)
-import gc
-import webrepl
+# import webrepl
 import network
-
-webrepl.start()
+import time
+# webrepl.start()
 
 network.hostname('ReflowOven')
 ap = network.WLAN(network.AP_IF)
-ap.config(essid="ReflowOven")
+ap.config(ssid="ReflowOven")
 ap.active(True)
 
-gc.collect()
-
+time.sleep(0.5)

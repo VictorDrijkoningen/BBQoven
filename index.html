@@ -34,7 +34,7 @@
                 <tr>
                     <td>
                         <div style="text-align: center;">
-                            3
+                            
                         </div>
                     </td>
                     <td>
@@ -44,7 +44,7 @@
                     </td>
                     <td>
                         <div style="text-align: center;">
-                            5
+                            
                         </div>
                     </td>
                 </tr>
@@ -53,6 +53,7 @@
                         <div style="text-align: center;">
                             <p id="runningtext"></p>
                             <p id="memtext"></p>
+                            <p id="pidtext"></p>
                             
                         </div>
                     </td>
@@ -131,6 +132,7 @@
                 document.getElementById("coolingtext").innerHTML = 'cooling: ' + globalstate['cooling'];
                 document.getElementById("coolingpostext").innerHTML = 'cooling position: ' + globalstate['cooling_pos'];
                 document.getElementById("memtext").innerHTML = 'memory free: ' + globalstate['memfree'] + "kb";
+                document.getElementById("pidtext").innerHTML = 'pid: ' + globalstate['pid'];
 
                 if (globalstate['error_detected'] == true){
                     document.getElementById("errorid").style.display = 'block';
@@ -202,9 +204,9 @@
 
             function set_download_date(){
                 const today = new Date()
-                document.getElementById("downloada").download = "Temp data "+today.toLocaleDateString("nl-NL")+" "+today.getHours()+"-"+today.getMinutes()+"-"+today.getSeconds()+".csv"
+                document.getElementById("downloada").download = "Temp data "+today.toLocaleDateString("nl-NL")+" "+today.getHours()+"-"+today.getMinutes()+"-"+today.getSeconds()+"-TITLE-"+".csv"
             }
-            var intervalId = window.setInterval(refresh, 2000);
+            var intervalId = window.setInterval(refresh, 3000);
             var intervalId2 = window.setInterval(set_download_date, 1000);
 
 

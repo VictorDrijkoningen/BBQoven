@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 def create(filesfolder, datafilename, solidworksfilename=None):
     df = pd.read_csv(os.path.join(filesfolder,datafilename))
 
+    title = filename.split("-")
+
     timetotal = df[["time"]].values
     timerela = timetotal - timetotal[0]
 
@@ -19,7 +21,7 @@ def create(filesfolder, datafilename, solidworksfilename=None):
     if solidworksfilename is not None:
         sw = pd.read_excel(solidworksfilename)
         sw = sw.tail(-1)
-        
+
         swtime = sw.iloc[:, 1]
         swtemp = sw.iloc[:, 2]
 
@@ -47,7 +49,7 @@ def create(filesfolder, datafilename, solidworksfilename=None):
     ax2.plot(timerela, coolingpos,  color='cyan', linestyle='dotted', label='Cooling Pos' )
     ax2.set_ylim((0,100))
     ax2.legend(loc="upper right")
-
+    plt.title(title[-2])
 
 
 

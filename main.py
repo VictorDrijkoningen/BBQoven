@@ -134,7 +134,7 @@ async def update_heater():
             heater.duty(0)
             GLOBAL_STATE['heating_duty'] = 0
         
-        if GLOBAL_STATE['running'] and target_temp -0.25 < target_temp_last:
+        if GLOBAL_STATE['running']:
             cooler_pid.setpoint = target_temp
             pos = int(cooler_pid(actual_temp))
             GLOBAL_STATE['cooling_pos'] = pos
@@ -235,7 +235,7 @@ def setup_devices():
     heater = PWM(Pin(25))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(100,0,100, setpoint=20, )
+    heater_pid = PID(120,0,840, setpoint=20, )
     heater_pid.output_limits = (0,1023)
 
     global cooler

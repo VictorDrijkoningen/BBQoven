@@ -20,6 +20,25 @@ alloc_emergency_exception_buf(100)
 
 outfile = "temps.csv"
 
+def smd4300ax10():
+    global GLOBAL_STATE
+
+    if not GLOBAL_STATE['running']:
+        return 20
+    
+    runtime = time.time() - GLOBAL_STATE['start_time']
+
+    time_section = [0, 60,  150, 180, 210, 240, 270, 500]
+    temp_section = [30,100, 150, 183, 235, 235, 183, 60]
+
+    assert len(time_section) == len(temp_section)
+
+    for i in range(len(time_section)):
+        if runtime < time_section[i]:
+            return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
+    GLOBAL_STATE['running'] = False
+    return 20
+
 def temp_curve_points():
     global GLOBAL_STATE
 
@@ -74,13 +93,13 @@ def one_temp():
     if not GLOBAL_STATE['running']:
         return 20
     runtime = time.time() - GLOBAL_STATE['start_time']
-    if runtime < 180:
-        return 150
+    if runtime < 400:
+        return 200
     else:
         GLOBAL_STATE['running'] = False
         return 20
 
-using_curve = temp_curve_points
+using_curve = smd4300ax10
 
 async def update_heater():
     global heater
@@ -131,10 +150,7 @@ async def update_heater():
 
         if not GLOBAL_STATE['running']:
             disable_servo(cooler)
-
-        
-            
-
+         
 def disable_servo(device):
     device.duty(0)
 
@@ -165,14 +181,13 @@ async def update_fan():
     while not GLOBAL_STATE['shutdown']:
         await asyncio.sleep(5)
         if GLOBAL_STATE['running']:
-            fan.duty(600)
+            fan.duty(1023)
             been_on = True
         else:
             if been_on:
                 await asyncio.sleep(240)
                 been_on = False
             fan.duty(450)
-
 
 async def update_temp():
     global thermometer
@@ -181,7 +196,7 @@ async def update_temp():
     global fan
     global GLOBAL_STATE
     with open(outfile, mode="w") as f:
-        f.write("time,target_temp,t1,t2,heating_duty,cooling_pos,fan_duty, PID:"+str(heater_pid.Kp)+"-"+str(heater_pid.Ki)+"-"+str(heater_pid.Kd)+"\n")
+        f.write("time,target_temp,t1,t2,heating_duty,cooling_pos,fan_duty, PID:"+str(heater_pid.Kp)+"-"+str(heater_pid.Ki)+"-"+str(heater_pid.Kd)+"- diffOM: " + str(heater_pid.differential_on_measurement)+"\n")
     
     while not GLOBAL_STATE['shutdown']:
 
@@ -220,7 +235,7 @@ def setup_devices():
     heater = PWM(Pin(25))
     heater.freq(50)
     heater.duty(0)
-    heater_pid = PID(110,0,45, setpoint=20, )
+    heater_pid = PID(100,0,100, setpoint=20, )
     heater_pid.output_limits = (0,1023)
 
     global cooler
@@ -253,6 +268,7 @@ GLOBAL_STATE['memfree'] = 0
 GLOBAL_STATE['error_detected'] = False
 GLOBAL_STATE['download'] = False
 GLOBAL_STATE['shutdown'] = False
+GLOBAL_STATE['pid'] = str(heater_pid.Kp) + "-" + str(heater_pid.Ki) + "-" + str(heater_pid.Kd)
 
 app = Microdot()
 
@@ -272,8 +288,6 @@ async def shutdown(request):
     request.app.shutdown()
     GLOBAL_STATE['shutdown'] = True
     
-
-
 @app.route('/start', methods=['GET'])
 async def start(request):
     print("start signal")

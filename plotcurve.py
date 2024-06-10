@@ -6,8 +6,8 @@ import numpy
 
 
 def curve(runtime):
-    time_section = [0,90, 180, 240, 300]
-    temp_section = [0,150, 200, 250, 0]
+    time_section = [0, 60,  150, 180, 210, 240, 270, 500]
+    temp_section = [30,100, 150, 183, 235, 235, 183, 60]
 
     assert len(time_section) == len(temp_section)
 
@@ -17,7 +17,7 @@ def curve(runtime):
 
 
 x = list()
-for i in range(300):
+for i in range(600):
     x.append(i)
 y = list()
 for i in x:

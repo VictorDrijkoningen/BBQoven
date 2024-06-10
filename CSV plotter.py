@@ -15,7 +15,7 @@ def create(filesfolder, datafilename, solidworksfilename=None):
     temps = df[["target_temp","t1","t2"]].values
     heatingduty = df[["heating_duty"]].values/1023*100
     fanduty = df[["fan_duty"]].values/1023*100
-    coolingpos = (df[["cooling_pos"]].values -120)/60*100
+    coolingpos = (df[["cooling_pos"]].values -35)/115*100
 
 
     if solidworksfilename is not None:

@@ -94,7 +94,7 @@ def one_temp():
         return 20
     runtime = time.time() - GLOBAL_STATE['start_time']
     if runtime < 400:
-        return 200
+        return 50
     else:
         GLOBAL_STATE['running'] = False
         return 20
@@ -142,14 +142,21 @@ async def update_heater():
             GLOBAL_STATE['cooling'] = True
             GLOBAL_STATE['heating'] = False
         else:
-            if not pos == 90:
-                pos = 90
-                servo(cooler, pos)
-                await asyncio.sleep(1)
-            GLOBAL_STATE['cooling_pos'] = pos
+            if not pos == -1:
+                servo(cooler, 150)
+                await asyncio.sleep(0.5)
+                pos = -1
+                GLOBAL_STATE['cooling_pos'] = pos
+                disable_servo(cooler)
+        # else:
+        #     if not pos == 90:
+        #         pos = 90
+        #         servo(cooler, pos)
+        #         await asyncio.sleep(1)
+        #     GLOBAL_STATE['cooling_pos'] = pos
 
-        if not GLOBAL_STATE['running']:
-            disable_servo(cooler)
+        # if not GLOBAL_STATE['running']:
+        #     disable_servo(cooler)
          
 def disable_servo(device):
     device.duty(0)
@@ -243,8 +250,9 @@ def setup_devices():
     cooler = PWM(Pin(13))
     cooler.freq(50)
     cooler.duty(0)
-    cooler_pid = PID(-7,0,0, setpoint=20)
-    cooler_pid.output_limits = (120,180)
+    cooler_pid = PID(-10,0,0, setpoint=20)
+    cooler_pid.output_limits = (35,150)
+
 
     global temp1
     temp1 = MAX6675(so_pin=19, cs_pin=22, sck_pin=18)

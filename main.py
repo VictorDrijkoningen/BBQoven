@@ -144,7 +144,7 @@ async def update_heater():
         else:
             if not pos == -1:
                 servo(cooler, 150)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.5)
                 pos = -1
                 GLOBAL_STATE['cooling_pos'] = pos
                 disable_servo(cooler)

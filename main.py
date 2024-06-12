@@ -10,15 +10,19 @@ import time
 from pid import PID
 from max6675 import MAX6675
 from micropython import alloc_emergency_exception_buf
-# from rotary_irq_esp import RotaryIRQ
 
 alloc_emergency_exception_buf(100)
 
-# def temp_R_253():
-#     time_section = [0,90, 180, 240, 300]
-#     temp_section = [0,150, 200, 250, 0]
-
 outfile = "temps.csv"
+
+with open(".env", mode="r") as fi:
+    env = fi.read()
+    env = env.split("/")
+    env[0] = eval(env[0])
+    env[1] = eval(env[1])
+
+print(env)
+
 
 def smd4300ax10():
     global GLOBAL_STATE
@@ -39,16 +43,19 @@ def smd4300ax10():
     GLOBAL_STATE['running'] = False
     return 20
 
-def temp_curve_points():
+
+def env_file_curve():
     global GLOBAL_STATE
+    global env
+    
+    time_section = env[0]
+    temp_section = env[1]
+
 
     if not GLOBAL_STATE['running']:
         return 20
     
     runtime = time.time() - GLOBAL_STATE['start_time']
-
-    time_section = [0,150, 270, 330, 360, 470]
-    temp_section = [30,100, 110, 150, 150, 30]
 
     assert len(time_section) == len(temp_section)
 
@@ -58,46 +65,6 @@ def temp_curve_points():
     GLOBAL_STATE['running'] = False
     return 20
 
-def temp_curve_points_test():
-    global GLOBAL_STATE
-
-    if not GLOBAL_STATE['running']:
-        return 20
-    
-    runtime = time.time() - GLOBAL_STATE['start_time']
-
-    time_section = [0,180, 300, 500, ]
-    temp_section = [30,100, 100, 0, ]
-
-    assert len(time_section) == len(temp_section)
-
-    for i in range(len(time_section)):
-        if runtime < time_section[i]:
-            return  temp_section[i-1] + (temp_section[i] - temp_section[i-1])/(time_section[i]-time_section[i-1]) * (runtime-time_section[i-1])
-    GLOBAL_STATE['running'] = False
-    return 20
-
-def temp_curve_sine():
-    global GLOBAL_STATE
-
-    if not GLOBAL_STATE['running']:
-        return 20
-
-    runtime = time.time() - GLOBAL_STATE['start_time']
-
-    return 112.5 + 12.5*math.sin(runtime/40 - math.pi/2)
-
-def one_temp():
-    global GLOBAL_STATE
-
-    if not GLOBAL_STATE['running']:
-        return 20
-    runtime = time.time() - GLOBAL_STATE['start_time']
-    if runtime < 400:
-        return 50
-    else:
-        GLOBAL_STATE['running'] = False
-        return 20
 
 using_curve = smd4300ax10
 
@@ -109,7 +76,7 @@ async def update_heater():
     global temp1
 
     target_temp = using_curve()
-    pos = 0
+    pos = -1
 
 
     while not GLOBAL_STATE['shutdown']:
@@ -144,7 +111,7 @@ async def update_heater():
         else:
             if not pos == -1:
                 servo(cooler, 150)
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(1.0)
                 pos = -1
                 GLOBAL_STATE['cooling_pos'] = pos
                 disable_servo(cooler)

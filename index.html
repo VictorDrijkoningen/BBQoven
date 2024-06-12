@@ -132,7 +132,7 @@
                 document.getElementById("coolingtext").innerHTML = 'cooling: ' + globalstate['cooling'];
                 document.getElementById("coolingpostext").innerHTML = 'cooling position: ' + globalstate['cooling_pos'];
                 document.getElementById("memtext").innerHTML = 'memory free: ' + globalstate['memfree'] + "kb";
-                document.getElementById("pidtext").innerHTML = 'pid: ' + globalstate['pid'];
+                document.getElementById("pidtext").innerHTML = 'heater pid: ' + globalstate['pid'];
 
                 if (globalstate['error_detected'] == true){
                     document.getElementById("errorid").style.display = 'block';

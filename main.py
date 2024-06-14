@@ -65,8 +65,7 @@ def env_file_curve():
     GLOBAL_STATE['running'] = False
     return 20
 
-
-using_curve = smd4300ax10
+using_curve = env_file_curve
 
 async def update_heater():
     global heater
@@ -244,6 +243,7 @@ GLOBAL_STATE['error_detected'] = False
 GLOBAL_STATE['download'] = False
 GLOBAL_STATE['shutdown'] = False
 GLOBAL_STATE['pid'] = str(heater_pid.Kp) + "-" + str(heater_pid.Ki) + "-" + str(heater_pid.Kd)
+GLOBAL_STATE['curve'] = str(env[0]) + "/" + str(env[1])
 
 app = Microdot()
 
@@ -293,6 +293,35 @@ async def data(request):
 async def mem(request):
     return str(gc.mem_alloc()) + " used, " +  str(gc.mem_free()) + " free"
 
+@app.route('/curve', methods=['POST'])
+async def data(request):
+    global GLOBAL_STATE
+    global env
+    print(request.form['SolderCurve'])
+
+    try:
+        data = request.form['SolderCurve']
+        splitdata = data.split("/")
+
+        if not len(eval(splitdata[0])) == len(eval(splitdata[1])):
+            return "tijd en temp lijsten niet even lang"
+
+        #eerste tijd waarde is 0
+        if not eval(splitdata[0])[0] == 0:
+            return "eerste tijd waarde niet nul"
+
+        env[0] = eval(splitdata[0])
+        env[1] = eval(splitdata[1])
+
+        with open('.env', mode="w") as fi:
+            fi.write(request.form['SolderCurve'])
+
+        GLOBAL_STATE['curve'] = str(env[0]) + "/" + str(env[1])
+
+        return f"saved! {GLOBAL_STATE['curve']}"
+    except Exception as e:
+        return "Something went wrong, please check input data " + str(e)
+    
 
 async def webserver():
     await app.start_server(debug=True,host='0.0.0.0', port=80)

@@ -50,11 +50,18 @@
                 </tr>
                 <tr>
                     <td>
-                        <div style="text-align: center;">
+                        <div style="text-align: center; max-width: 17vw;">
                             <p id="runningtext"></p>
                             <p id="memtext"></p>
                             <p id="pidtext"></p>
-                            
+                            <p id="curvetext"></p>
+                            <form target="transFrame" action="/curve" method="post">
+                                <input name="SolderCurve" id="curve" value="[timepoint1,timepoint2,..]/[temppoint1,temppoint2,..]" />
+                                <input type="submit" value="Submit">
+                            </form>
+
+                            <iframe name="transFrame" id="transFrame"></iframe>
+
                         </div>
                     </td>
                     <td>
@@ -133,6 +140,7 @@
                 document.getElementById("coolingpostext").innerHTML = 'cooling position: ' + globalstate['cooling_pos'];
                 document.getElementById("memtext").innerHTML = 'memory free: ' + globalstate['memfree'] + "kb";
                 document.getElementById("pidtext").innerHTML = 'heater pid: ' + globalstate['pid'];
+                document.getElementById("curvetext").innerHTML = 'curve: ' + globalstate['curve'];
 
                 if (globalstate['error_detected'] == true){
                     document.getElementById("errorid").style.display = 'block';

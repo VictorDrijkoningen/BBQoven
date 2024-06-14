@@ -61,7 +61,7 @@ def create(filesfolder, datafilename, solidworksfilename=None):
     plt.savefig(os.path.join(filesfolder,os.path.splitext(datafilename)[0]+'.png'), dpi=200)
 
 
-folder = "data"
+folder = "analyse data/data"
 for filename in os.listdir(folder):
     if ".csv" in filename:
         print(filename)
